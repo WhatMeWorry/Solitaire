@@ -128,7 +128,7 @@ struct Card
     Suit     suit;
     Color    color;
     char[2]  symbol;  
-    bool     facing;  // face up or face down
+    //bool     facing;  // face up or face down
 }
 
 Card[] deck;  // deck will also function as the Klondike "Stock" pile
@@ -240,6 +240,9 @@ void showAllFaceUpCards()
 
 void displayTableau()
 {
+    system("cls");   
+    displayStockWasteFoundationTableauBrackets();
+	
     foreach(size_t i, cardPile; tableau) 
     {
 	    //writeln("cardPile = ", cardPile);
@@ -252,7 +255,7 @@ void displayTableau()
             foreach(size_t j, kard; cardPile.down)
             {   
                 write("\033[",to!string(r), ";", to!string(c), "H");
-		        displayCard(kard);
+		        displayCard(kard, Facing.down);
                 r++;				
             }
         }		
@@ -261,7 +264,7 @@ void displayTableau()
             foreach(size_t j, kard; cardPile.up)
             {   
                 write("\033[",to!string(r), ";", to!string(c), "H");
-		        displayCard(kard);
+		        displayCard(kard, Facing.up);
                 r++;
             }
         }
@@ -306,6 +309,8 @@ void moveTableauCardsOnOtherCards()
                     if((fromCard.rank == tableau[y].up[0].rank-1) &&   // if card is one less 
                        (fromCard.color != tableau[y].up[0].color) )       // and different colors
 					{
+						writeln("x = ", x, "  y = ", y);
+					    writeAndPause("we've detected a legal move...");
 					    writeln("x = ", x, "  y = ", y);
                         writeln("tableau[y].up = ", tableau[y].up);	
                         writeln("tableau[x].up = ", tableau[x].up);
@@ -313,34 +318,36 @@ void moveTableauCardsOnOtherCards()
                         tableau[y].up ~= tableau[x].up[0..$].dup;   // move up card or cards to new up card
 						                                            // concateneate dst up cards with from up cards
                                                                     // this is equivelant to physically moveing the cards
+                        // tableau[x].up has given up all its cards. mark as empty
 
-                        writeln("TAB tableau[x].up = ", tableau[x].up);					
-                        tableau[x].up = tableau[x].up[0..$-1];  // remove card
-                        writeln("TAB tableau[x].up = ", tableau[x].up);			
-					   writeAndPause("SHRINK BY ONE");	
-
-
-						writeln("x = ", x, "  y = ", y);						
+                        tableau[x].up = null;           							
 						writeln("tableau[y].up = ", tableau[y].up);	
                         writeln("tableau[x].up = ", tableau[x].up);
 						
-                       displayTableau();						
-					   writeAndPause("KYLE 3");	
+                        //displayTableau();
+					   
+                        writeln();
+                        //writeAndPause("next we will adjust the source colun");	
                   						
 						
-						//tableau[x].up = tableau[x].up.remove(tableau[x].up.length-1);
+                        // tableau[x].up = tableau[x].up.remove(tableau[x].up.length-1);
                         // tableau[x].up.length = 0;	 // WRONG: just sets the length to 0. 
-                        //tableau[x].up = null;  // sets both the .ptr property of an array to null, and the length to 0
+                        // tableau[x].up = null;  // sets both the .ptr property of an array to null, and the length to 0
                         						
-                        if(tableau[x].down.length >= 1)   // Any down cards in newly exposed column?
+                        if( (tableau[x].up == null) && (tableau[x].down.length >= 1) )   // if up cards are all gone and there are down cards
                         {	
-                            //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG						
+                            //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG	
+                            writeln("before");			
+						    writeln("tableau[x].down = ", tableau[x].down);	
+                            writeln("tableau[x].up = ",   tableau[x].up);							
                             tableau[x].up ~= tableau[x].down[$-1..$].dup;  // move down card into up array
-                            tableau[x].down = tableau[x].down[0..$-1]; // remove the previous c							
-                            //tableau[x].up[0].facing = Facing.up;
+                            tableau[x].down = tableau[x].down[0..$-1]; // remove the previous c	           							
+						    writeln("tableau[x].down = ", tableau[x].down);	
+                            writeln("tableau[x].up = ",   tableau[x].up);							
 
                         }
-                    						
+                        
+                        displayTableau();						
                     }
 				
                 }
@@ -365,12 +372,12 @@ TableauPile[Columns] tableau;
 
 
 
-void displayCard(Card c)
+void displayCard(Card c, Facing facing)
 {
 	write(boldBackWhite);
 	write(foreBlack);	
 
-    if(c.facing == Facing.down)
+    if(facing == Facing.down)
     {
         write(boldForeBlue);
 	    write(" X ");
@@ -396,7 +403,61 @@ void displayCard(Card c)
 	write(backBlack);	   		
 }
 
+    void displayStockWasteFoundationTableauBrackets()
+    {
+        write(boldForeBlue);
+        //write(boldBackBlack);
+        write(backBlack);		
+		
+        string stockPos = "\033[" ~ "2" ~ ";" ~ "10" ~ "H";
+		write(stockPos);
+		write('[');
+        write("\033[2;14H");		
+	    write(']');
+		
+        string wastePos = "\033[2;31H";
+		write(wastePos);
+		write('[');
+        write("\033[2;35H");		
+	    write(']');		
 
+		// foundation 1
+        write("\033[","2", ";", "40", "H");		
+		write('[');
+        write("\033[","2", ";", "44", "H");		
+	    write(']');	
+
+		// foundation 2
+        write("\033[","2", ";", "50", "H");		
+		write('[');
+        write("\033[","2", ";", "54", "H");		
+	    write(']');	
+		
+		// foundation 3
+        write("\033[","2", ";", "60", "H");		
+		write('[');
+        write("\033[","2", ";", "64", "H");		
+	    write(']');	
+
+		// foundation 4
+        write("\033[","2", ";", "70", "H");		
+		write('[');
+        write("\033[","2", ";", "74", "H");		
+	    write(']');	
+
+        int row = 4;
+		int col = 10;
+        foreach( i ; tableau )
+		{
+		    // tableau
+            write("\033[",to!string(row), ";", to!string(col), "H");		
+		    write('[');
+            write("\033[",to!string(row), ";", to!string(col+4), "H");		
+	        write(']');
+            col = col + 10;			
+        }
+		
+    }
 
 
 void main()
@@ -542,63 +603,7 @@ void main()
         if (!suc) { writeln("FAILURE ***************************************"); }	
     }
 
-    void displayStockWasteFoundationTableauBrackets()
-    {
-        write(boldForeBlue);
-        //write(boldBackBlack);
-        write(backBlack);		
-		
-        string stockPos = "\033[" ~ "2" ~ ";" ~ "10" ~ "H";
-		write(stockPos);
-		write('[');
-        write("\033[2;14H");		
-	    write(']');
-		
-        string wastePos = "\033[2;31H";
-		write(wastePos);
-		write('[');
-        write("\033[2;35H");		
-	    write(']');		
 
-		// foundation 1
-        write("\033[","2", ";", "40", "H");		
-		write('[');
-        write("\033[","2", ";", "44", "H");		
-	    write(']');	
-
-		// foundation 2
-        write("\033[","2", ";", "50", "H");		
-		write('[');
-        write("\033[","2", ";", "54", "H");		
-	    write(']');	
-		
-		// foundation 3
-        write("\033[","2", ";", "60", "H");		
-		write('[');
-        write("\033[","2", ";", "64", "H");		
-	    write(']');	
-
-		// foundation 4
-        write("\033[","2", ";", "70", "H");		
-		write('[');
-        write("\033[","2", ";", "74", "H");		
-	    write(']');	
-
-        int row = 4;
-		int col = 10;
-        foreach( i ; tableau )
-		{
-		    // tableau
-            write("\033[",to!string(row), ";", to!string(col), "H");		
-		    write('[');
-            write("\033[",to!string(row), ";", to!string(col+4), "H");		
-	        write(']');
-            col = col + 10;			
-        }
-
-
-		
-    }
 
  
 /+
@@ -612,28 +617,10 @@ void main()
                    tableau              tableau            tableau
 +/ 
         
-system("cls");		
+    system("cls");		
 		
 		
  
-
- 
-/+ 
-    int y = 1;	
-    foreach(c; deck)  
-    {
-		write(boldBackWhite);
-		write(foreBlack);	
-
-        displayCard(c);
-
-		y++;
-		
-		string moveRight = "\033[" ~ to!string(y) ~ "C";
-		
-		write(moveRight);
-    }	
-+/	
 	
 	auto bitBucket = executeShell("cls");
 	
@@ -642,33 +629,19 @@ system("cls");
     string s = "**** HELLO THERE ****";
 
     // system("cls");		
-
-    displayStockWasteFoundationTableauBrackets();
 	
-	write(boldBackWhite);
+	//write(boldBackWhite);
 	write(foreBlack);
 	
-   displayTableau();
+    displayTableau();
 
+    writeln();
     writeAndPause("after displayTableau");
 	
     moveTableauCardsOnOtherCards();
 
     displayTableau();
 
-/+
-    int y = 1;	
-    foreach(c; deck)  
-    {
-        displayCard(c);
-
-		y++;
-		
-		string moveRight = "\033[" ~ to!string(y) ~ "C";
-		
-		write(moveRight);
-    }	
-+/
 
 
 	
