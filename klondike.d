@@ -1,4 +1,5 @@
 
+
 module klondike;
 
 import std.traits;
@@ -16,6 +17,9 @@ enum    Suit : int    { heart, spade, diamond, club }
 enum   Color : int    { red, black }
 enum Ranking : int    { ace, two, three, four, five, six, seven, eight, nine, ten, jack, queen, king }
 char[2][13] symbols = [" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"];
+
+string stockBrackets;
+string wasteBrackets;
 
 enum Facing : bool { down, up }
 
@@ -86,21 +90,8 @@ void writeAndPause(string s)
     writeln(s);
     version(Windows)
     {  
-        // pause command prints out
-        // "Press any key to continue..."
-
-        // auto ret = executeShell("pause");
-        // if (ret.status == 0)
-        //     writeln(ret.output);
-
-        // The functions capture what the child process prints to both its standard output 
-        // and standard error streams, and return this together with its exit code.
-        // The problem is we don't have the pause return output until after the user
-        // hits a key.
-
         writeln("Press any key to continue...");       
         executeShell("pause");  // don't bother with standard output the child returns
-
     }
     else // Mac OS or Linux
     {
@@ -108,6 +99,14 @@ void writeAndPause(string s)
         executeShell(`read -n1 -r`);    // -p option did not work
     }
 }
+
+
+
+
+
+
+
+
 
 
 /+
@@ -142,7 +141,6 @@ struct FoundationPile
 }
 
 FoundationPile[4] foundations;
-
 
 
 struct Pos
@@ -360,17 +358,6 @@ void moveTableauCardsOnOtherCards()
 }
 
 
-/+
-struct TableauPile
-{
-    Card[] down;  // face down
-    Card[] up;    // face up
-}
-enum int Columns = 7;
-TableauPile[Columns] tableau;
-+/
-
-
 
 void displayCard(Card c, Facing facing)
 {
@@ -403,61 +390,74 @@ void displayCard(Card c, Facing facing)
 	write(backBlack);	   		
 }
 
-    void displayStockWasteFoundationTableauBrackets()
+
+string makeBrackets(int row, int col)
+{
+    immutable string doubleQuoteOct = "\042";
+	
+    string str = "immutable string tableauBrackets = " ~ doubleQuoteOct;
+    foreach(i; 0..7)	
     {
-        write(boldForeBlue);
-        //write(boldBackBlack);
-        write(backBlack);		
-		
-        string stockPos = "\033[" ~ "2" ~ ";" ~ "10" ~ "H";
-		write(stockPos);
-		write('[');
-        write("\033[2;14H");		
-	    write(']');
-		
-        string wastePos = "\033[2;31H";
-		write(wastePos);
-		write('[');
-        write("\033[2;35H");		
-	    write(']');		
-
-		// foundation 1
-        write("\033[","2", ";", "40", "H");		
-		write('[');
-        write("\033[","2", ";", "44", "H");		
-	    write(']');	
-
-		// foundation 2
-        write("\033[","2", ";", "50", "H");		
-		write('[');
-        write("\033[","2", ";", "54", "H");		
-	    write(']');	
-		
-		// foundation 3
-        write("\033[","2", ";", "60", "H");		
-		write('[');
-        write("\033[","2", ";", "64", "H");		
-	    write(']');	
-
-		// foundation 4
-        write("\033[","2", ";", "70", "H");		
-		write('[');
-        write("\033[","2", ";", "74", "H");		
-	    write(']');	
-
-        int row = 4;
-		int col = 10;
-        foreach( i ; tableau )
-		{
-		    // tableau
-            write("\033[",to!string(row), ";", to!string(col), "H");		
-		    write('[');
-            write("\033[",to!string(row), ";", to!string(col+4), "H");		
-	        write(']');
-            col = col + 10;			
-        }
-		
+        str ~= "\033[" ~ to!string(row) ~ ";" ~ to!string(col)   ~ "H" ~ "[" ~
+               "\033[" ~ to!string(row) ~ ";" ~ to!string(col+4) ~ "H" ~ "]";
+        col += 10;	
     }
+    str ~= doubleQuoteOct ~ ";";       // close quote and end of statement
+    return str;
+}		
+
+
+string makeFoundationBrackets(int row, int col)
+{
+    string doubleQuoteOct = "\042";
+	
+    string str = "immutable string foundationBrackets = " ~ doubleQuoteOct;  // immutable string foundationBrackets = "
+    foreach(i; 0..4)	
+    {
+        str ~= "\033[" ~ to!string(row) ~ ";" ~ to!string(col)   ~ "H" ~ "[" ~
+               "\033[" ~ to!string(row) ~ ";" ~ to!string(col+4) ~ "H" ~ "]";
+        col += 10;	
+    }
+    str ~= doubleQuoteOct ~ ";";       // immutable string foundationBrackets = "ESC [2;30H
+    return str;
+}		
+
+
+
+/+
+012345678901234567890123456789012345678901234567890123456789012345678901234567890
+    10s   +    20s  +   30s   +    40s  +    50s  +    60s  +    70s  +   80s   +
+
+          [___]      [___]         [___]     [___]     [___]     [___]     
+          stock      waste                       foundations
+	
+	 [___]     [___]     [___]     [___]     [___]     [___]     [___] 	 
+                   tableau              tableau            tableau
++/ 
+
+
+
+void displayStockWasteFoundationTableauBrackets()
+{
+    write(boldForeBlue);
+    write(backBlack);	
+		                                     // row       column
+    immutable string stockBrackets = "\033[" ~ "2" ~ ";" ~ "15" ~ "H" ~ '[' ~ "\033[" ~ '2' ~ ';' ~ "19" ~ "H" ~ ']';		
+    write(stockBrackets);		
+			
+    immutable string wasteBrackets = "\033[" ~ '2' ~ ';' ~ "25" ~ 'H' ~ '[' ~ "\033[" ~ '2' ~ ';' ~ "29" ~ "H" ~ ']';
+    write(wasteBrackets);
+
+    mixin(makeFoundationBrackets(2, 40));
+    write(foundationBrackets);		
+
+    mixin(makeBrackets(4, 10));
+	write(tableauBrackets);	
+}
+
+
+
+
 
 
 void main()
@@ -492,7 +492,9 @@ void main()
                 card.color = Color.red;	
             deck ~= card;				
         }		
-    }		
+    }
+
+	
 
     //writeln("deck should have 52 cards: ", deck.length);
 	
@@ -565,6 +567,9 @@ void main()
         //writeln("\x52\&eacute;sum\u00e9 preparation: 10.25\&spades;");	
         //writeln("preparation: \&spades;");
 
+        // Virtual terminal sequences are control character sequences that can control cursor movement, 
+        // color/font mode, and other operations when written to the output stream. 
+
         // https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
 
 
@@ -606,16 +611,6 @@ void main()
 
 
  
-/+
-012345678901234567890123456789012345678901234567890123456789012345678901234567890
-    10s   +    20s  +   30s   +    40s  +    50s  +    60s  +    70s  +   80s   +
-
-          [___]      [___]         [___]     [___]     [___]     [___]     
-          stock      waste                       foundations
-	
-	 [___]     [___]     [___]     [___]     [___]     [___]     [___] 	 
-                   tableau              tableau            tableau
-+/ 
         
     system("cls");		
 		
@@ -651,6 +646,26 @@ void main()
     writeln(foreWhite);		
     writeln(backBlack);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
