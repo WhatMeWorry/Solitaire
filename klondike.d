@@ -45,6 +45,51 @@ enum   boldForeBlue = "\033[94m";
 HANDLE hOut;
 DWORD  dwMode;
 
+
+Color[Suit] suitColor;
+
+struct Card
+{
+    Ranking  rank;
+    Suit     suit;
+    Color    color;
+    char[2]  symbol;  
+    //bool     facing;  // face up or face down  (removed because which pile a card is in implicitly defines facing)
+}
+
+Card[] deck;  // deck will also function as the Klondike "Stock" pile
+Card[] stock;
+Card[] waste; 
+
+
+struct FoundationPile
+{
+    Pos    pos;
+    Card[] up;    // all card are face up on the Foundation
+}
+
+FoundationPile[4] foundations;
+
+
+
+struct Pos
+{
+    uint x;
+    uint y;
+}
+
+struct TableauPile
+{
+    Pos    pos; 
+    Card[] down;  // face down
+    Card[] up;    // face up
+}
+
+enum int Columns = 7;
+
+TableauPile[Columns] tableau;
+
+
 bool disableVTMode()
 {
     dwMode |= !ENABLE_VIRTUAL_TERMINAL_PROCESSING;
@@ -54,6 +99,7 @@ bool disableVTMode()
     }
     return true;
 }
+
 
 bool EnableVTMode()
 {
@@ -85,11 +131,22 @@ bool EnableVTMode()
     return true;
 }
 
+
+void moveCursorBottomLeft()
+{
+    immutable string lowerLeft = "\033[" ~ "15" ~ ";" ~ "3" ~ "H";	
+    writeln(lowerLeft);           
+}
+
+
 void writeAndPause(string s)
 {
-    writeln(s);
+
     version(Windows)
     {  
+        immutable string lowerLeft = "\033[" ~ "15" ~ ";" ~ "3" ~ "H";	
+        writeln(lowerLeft);        
+        writeln(s);	
         writeln("Press any key to continue...");       
         executeShell("pause");  // don't bother with standard output the child returns
     }
@@ -99,67 +156,6 @@ void writeAndPause(string s)
         executeShell(`read -n1 -r`);    // -p option did not work
     }
 }
-
-
-
-
-
-
-
-
-
-
-/+
- 
- static Initialization of associative arrays is not yet implemented.  2019/7/18
-
-int[int] suitColor = [ Suit.diamond : Color.red, 
-                       Suit.spade   : Color.black, 
-                       Suit.heart   : Color.red, 
-                       Suit.club    : Color.black ];
-+/
-
-Color[Suit] suitColor;
-
-struct Card
-{
-    Ranking  rank;
-    Suit     suit;
-    Color    color;
-    char[2]  symbol;  
-    //bool     facing;  // face up or face down
-}
-
-Card[] deck;  // deck will also function as the Klondike "Stock" pile
-Card[] stock;
-Card[] wastePile; 
-
-
-struct FoundationPile
-{
-    Card[] up;    // all card are face up on the Foundation
-}
-
-FoundationPile[4] foundations;
-
-
-struct Pos
-{
-    uint x;
-    uint y;
-}
-
-struct TableauPile
-{
-    Pos    pos; 
-    Card[] down;  // face down
-    Card[] up;    // face up
-}
-
-enum int Columns = 7;
-
-TableauPile[Columns] tableau;
-
 
 
 
@@ -195,6 +191,24 @@ void placeCardsDown(size_t x)
 	}
 }
 
+
+void placeCardFromStockOnWasteFacingUp()
+{
+    Card card;
+    card = deck[$-1];  // take a card from the deck
+
+    //card.facing = Facing.up;		
+    //writeln("card = ", card);
+
+    waste ~= card;
+	
+    deck = deck[0..$-1];   // remove last 
+		
+
+}
+
+
+
 void placeCardUp(size_t x)
 {
     //writeln("Place 1 card up");
@@ -222,6 +236,9 @@ void showTopFaceUpCards()
 
 }
 
+
+
+
 void showAllFaceUpCards()
 {
     //writeln("Cards currently face up on tableau area: ");
@@ -236,10 +253,62 @@ void showAllFaceUpCards()
 
 }
 
+
+void displayStockCard()
+{
+    if(stock.length >= 1)
+    {
+        immutable string stockCard = "\033[" ~ "2" ~ ";" ~ "17" ~ "H";	
+        write(boldForeBlue);		
+        write(stockCard, "X");		       
+    }
+}
+
+
+void displayWasteCard()
+{
+    /+
+    if(waste.length >= 1)
+    {
+        immutable string wasteCardPosition = "\033[" ~ "2" ~ ";" ~ "27" ~ "H";	
+        write(boldForeBlue);		
+        write(wasteCardPosition, "X");		       
+    }
+    +/
+    immutable string wasteCardPosition = "\033[" ~ "2" ~ ";" ~ "26" ~ "H";	
+    foreach(size_t y, kard; waste)
+    {
+	    write(wasteCardPosition);
+        displayCard(kard, Facing.up);
+        //writeln("card is ", tableau[x].up[y] );
+        //writeln("card is ", card);           			
+    }
+}
+
+void displayFoundation()
+{
+    foreach(size_t i, foundation; foundations) 
+    {
+        if(foundation.up.length >= 1)
+        {
+            uint r = foundation.pos.y;
+            uint c = foundation.pos.x+1;
+            write("\033[",to!string(r), ";", to!string(c), "H");
+            displayCard(foundation.up[$-1], Facing.up);			
+        }		
+	
+    }	
+
+
+}
+
+
 void displayTableau()
 {
     system("cls");   
     displayStockWasteFoundationTableauBrackets();
+	
+    displayStockCard();
 	
     foreach(size_t i, cardPile; tableau) 
     {
@@ -271,47 +340,74 @@ void displayTableau()
 }
 
 
-/+
-struct TableauPile
-{
-    Pos    pos; 
-    Card[] down;  // face down
-    Card[] up;    // face up
-}
-enum int Columns = 7;
-TableauPile[Columns] tableau
-+/
 
-//TableauPile column;
+bool moveCardsToFoundation()
+{
+    foreach(size_t i, ref column; tableau)
+    {
+        /+
+        if(tableau[x].up.length >= 1)    // is there a top card in this up pile 
+        {
+            fromCard = tableau[x].up[0];		
+        }
+        +/
+        if(column.up.length >= 1) // if there is a card in face up card column
+        {
+
+            // Card[] c = column.up[$-1..$];  // means set the c slice to same as the tableau/column slice
+            //   Card c = column.up[$-1..$];  // fails correctly because c struct cant digest a slice begin..end syntax
+			
+            // Card[] c = column.up[$-1];     // fails because we are trying to move an element of an array into another slice   
+            //   Card c = column.up[$-1];     // works because struct c gets an element.  Array indexing operation
+			Suit s = column.up[$-1].suit;
+            if(column.up[$-1].rank == (foundations[s].up[$-1].rank + 1))    // Even an empty foundation has a -1 valued dummy card   
+            {
+                foundations[s].up ~= column.up[$-1..$];        // move card from tableau to foundation
+                column.up = column.up[0..$-1];                 // take the card off the tableau 
+				writeln("foundations[s].up = ", foundations[s].up);
+                writeAndPause("YES!!!!!!!!!");
+                return(true);				
+            }          
+        }		
+    }
+
+    return(false);
+}
+
+
+
+
+// TableauPile column;
 
 // https://forum.dlang.org/thread/zuzucjrbsilxxhjngwbm@forum.dlang.org?page=1
 
 
-void moveTableauCardsOnOtherCards()
+bool moveTableauCardsOnOtherCards()
 {
     Card fromCard;
 	
     foreach(size_t x, column; tableau) 
     {
-		if(tableau[x].up.length >= 1)    // is there a top card in this up pile 
+        if(tableau[x].up.length >= 1)    // is there a top card in this up pile 
         {
             fromCard = tableau[x].up[0];		
         }
 	
         foreach(size_t y, possibility; tableau)
         {
-		    if(x != y)  // no reason to compare card to itself
+            if(x != y)  // no reason to compare card to itself
             {
                 if(tableau[y].up.length >= 1)   // is there a top card in this up pile  
                 {
-                    if((fromCard.rank == tableau[y].up[0].rank-1) &&   // if card is one less 
+                    if((fromCard.rank  == tableau[y].up[0].rank-1) &&     // if card is one less 
                        (fromCard.color != tableau[y].up[0].color) )       // and different colors
-					{
-						writeln("x = ", x, "  y = ", y);
-					    writeAndPause("we've detected a legal move...");
-					    writeln("x = ", x, "  y = ", y);
-                        writeln("tableau[y].up = ", tableau[y].up);	
-                        writeln("tableau[x].up = ", tableau[x].up);
+                    {
+                        writeln("x = ", x, "  y = ", y);
+                        writeAndPause("we've detected a legal move...");
+                        //writeln("x = ", x, "  y = ", y);
+						
+                        //writeln("tableau[y].up = ", tableau[y].up);	
+                        //writeln("tableau[x].up = ", tableau[x].up);
 						
                         tableau[y].up ~= tableau[x].up[0..$].dup;   // move up card or cards to new up card
 						                                            // concateneate dst up cards with from up cards
@@ -319,12 +415,12 @@ void moveTableauCardsOnOtherCards()
                         // tableau[x].up has given up all its cards. mark as empty
 
                         tableau[x].up = null;           							
-						writeln("tableau[y].up = ", tableau[y].up);	
-                        writeln("tableau[x].up = ", tableau[x].up);
+                        //writeln("tableau[y].up = ", tableau[y].up);	
+                        //writeln("tableau[x].up = ", tableau[x].up);
 						
                         //displayTableau();
 					   
-                        writeln();
+                        //writeln();
                         //writeAndPause("next we will adjust the source colun");	
                   						
 						
@@ -335,26 +431,26 @@ void moveTableauCardsOnOtherCards()
                         if( (tableau[x].up == null) && (tableau[x].down.length >= 1) )   // if up cards are all gone and there are down cards
                         {	
                             //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG	
-                            writeln("before");			
-						    writeln("tableau[x].down = ", tableau[x].down);	
-                            writeln("tableau[x].up = ",   tableau[x].up);							
-                            tableau[x].up ~= tableau[x].down[$-1..$].dup;  // move down card into up array
-                            tableau[x].down = tableau[x].down[0..$-1]; // remove the previous c	           							
-						    writeln("tableau[x].down = ", tableau[x].down);	
-                            writeln("tableau[x].up = ",   tableau[x].up);							
-
+                            //writeln("before");			
+                            //writeln("tableau[x].down = ", tableau[x].down);	
+                            //writeln("tableau[x].up = ",   tableau[x].up);	
+							
+                            tableau[x].up  ~= tableau[x].down[$-1..$].dup;  // move down card into up array
+                            tableau[x].down = tableau[x].down[0..$-1];      // remove the previous card	
+							
+                            //writeln("tableau[x].down = ", tableau[x].down);	
+                            //writeln("tableau[x].up = ",   tableau[x].up);							
                         }
                         
-                        displayTableau();						
-                    }
-				
-                }
-                  				
+                        displayTableau();
+                        return(true);						
+                    }				
+                }                  				
             }
         }
  		
     }   
-	
+    return(false);
 }
 
 
@@ -405,6 +501,7 @@ string makeBrackets(int row, int col)
     str ~= doubleQuoteOct ~ ";";       // close quote and end of statement
     return str;
 }		
+
 
 
 string makeFoundationBrackets(int row, int col)
@@ -458,8 +555,6 @@ void displayStockWasteFoundationTableauBrackets()
 
 
 
-
-
 void main()
 {
     suitColor[Suit.heart]   = Color.red;
@@ -493,7 +588,28 @@ void main()
             deck ~= card;				
         }		
     }
+	
 
+
+
+    foreach(size_t x, s; EnumMembers!Suit) 
+	{
+        Card c;
+		c.rank = cast(Ranking) -1;
+		c.suit = s;
+        if (s % 2)  
+            c.color = Color.black;   // s is odd
+        else
+            c.color = Color.red;			
+		c.symbol = "  ";
+        foundations[s].up ~= c; 
+        foundations[s].pos.y = 2;
+        foundations[s].pos.x = 40 + (x * 10);		
+        //writeln("foundations[s].up[] is ", foundations[s].up[]);
+ 
+    }		
+       //writeAndPause("Check this out");		
+ 
 	
 
     //writeln("deck should have 52 cards: ", deck.length);
@@ -517,8 +633,7 @@ void main()
 
     // Now deal out the Klondike Tableau
  
-
-		
+	
     int row = 4;
     int col = 10;		
     foreach(size_t i, table; tableau) 
@@ -529,9 +644,9 @@ void main()
         tableau[i].pos.x = col;
         tableau[i].pos.y = row;	
         col = col + 10;		
-    }   
- 
- 
+    }  
+
+
  
     foreach(size_t x, column; tableau) 
     {
@@ -541,17 +656,14 @@ void main()
     }   
 
     writeln("deck should have 24 cards: ", deck.length);
-
-    //showTopFaceUpCards();
-    
-    //moveTableauCardsOnOtherCards();
-
-    //showAllFaceUpCards();
-
-
-
-
-
+	
+	placeCardFromStockOnWasteFacingUp();
+	
+    writeln("deck should have 23 cards: ", deck.length);
+	
+	writeAndPause("KCH");
+	
+	
     version (Windows)
     {
         // UTF-8 has been assigned code page numbers of 65001 at Microsoft and 1208 at IBM
@@ -571,9 +683,6 @@ void main()
         // color/font mode, and other operations when written to the output stream. 
 
         // https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
-
-
-
 		
         //writeln(boldBackWhite);
         //writeln(boldForeBlack);
@@ -610,6 +719,13 @@ void main()
 
 
 
+
+
+
+
+
+
+
  
         
     system("cls");		
@@ -627,16 +743,45 @@ void main()
 	
 	//write(boldBackWhite);
 	write(foreBlack);
-	
-    displayTableau();
 
-    writeln();
-    writeAndPause("after displayTableau");
-	
-    moveTableauCardsOnOtherCards();
 
-    displayTableau();
+    char key = 'a';
 
+    while(key != 'q')
+    {	
+        displayTableau();	
+	    displayStockCard();
+	    displayWasteCard();
+
+        bool movedCard = false;
+        do
+        {
+            movedCard = moveTableauCardsOnOtherCards();      
+        } 
+        while(movedCard);
+		
+		
+        bool movedToFound = false;
+        do
+        {
+            movedToFound = moveCardsToFoundation();      
+        } 
+        while(movedToFound);
+        
+        //moveTableauCardsOnOtherCards();
+        //bool movedCard 
+		
+        displayTableau();	
+	    displayStockCard();
+	    displayWasteCard();		
+        displayFoundation();		
+		
+        moveCursorBottomLeft();		
+        write("ENTER q to quit? ");
+
+        readf(" %s", &key);		
+
+    }
 
 
 	
@@ -645,30 +790,11 @@ void main()
 
     writeln(foreWhite);		
     writeln(backBlack);
+
+
+
+	
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
