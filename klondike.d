@@ -171,23 +171,15 @@ string s(size_t t)
 
 void placeCardsDown(size_t x)
 {
-    //writeln("Place ", x, s(x), " down");
     foreach(j; 0..x)
 	{
 		Card card;
-		card = deck[$-1];  // take a card from the deck
+		card = deck[$-1];  // take (copy) a card from the top (end) of the deck
 			
-        //card.facing = Facing.down;       			
-        //writeln("card = ", card);
-		
-        //writeln("last = ", last);
-        deck = deck.remove(deck.length-1);
-		
-        //writeln("deck length = ", deck.length);
-		
+        deck = deck[0..$-1];  // delete the card just taken
+       //tableau[x].down ~= deck.remove(deck.length);	
+	   
         tableau[x].down ~= card;
-
-        //tableau[x].down ~= deck.remove(deck.length);	
 	}
 }
 
@@ -195,16 +187,11 @@ void placeCardsDown(size_t x)
 void placeCardFromStockOnWasteFacingUp()
 {
     Card card;
-    card = deck[$-1];  // take a card from the deck
-
-    //card.facing = Facing.up;		
-    //writeln("card = ", card);
+    card = deck[$-1];  // take (copy) a card from the top (end) of the deck
 
     waste ~= card;
 	
-    deck = deck[0..$-1];   // remove last 
-		
-
+    deck = deck[0..$-1];   // delete card just moved 
 }
 
 
@@ -220,7 +207,7 @@ void placeCardUp(size_t x)
     //card.facing = Facing.up;		
     //writeln("card = ", card);
 
-    deck = deck.remove(deck.length-1);
+    deck = deck[0..$-1];
 		
     tableau[x].up ~= card;	
 }
@@ -341,7 +328,7 @@ void displayTableau()
 
 
 
-bool moveCardsToFoundation()
+bool moveCardToFoundation()
 {
     foreach(size_t i, ref column; tableau)
     {
@@ -362,10 +349,20 @@ bool moveCardsToFoundation()
 			Suit s = column.up[$-1].suit;
             if(column.up[$-1].rank == (foundations[s].up[$-1].rank + 1))    // Even an empty foundation has a -1 valued dummy card   
             {
-                foundations[s].up ~= column.up[$-1..$];        // move card from tableau to foundation
-                column.up = column.up[0..$-1];                 // take the card off the tableau 
-				writeln("foundations[s].up = ", foundations[s].up);
-                writeAndPause("YES!!!!!!!!!");
+				moveCursorToDebugLine();
+				writeln("foundations[s].up = ", foundations[s].up);			
+			
+                foundations[s].up ~= column.up[$-1..$];        // move (copy) card from tableau to foundation
+                column.up = column.up[0..$-1];                 // delete the card just moved
+
+                // if the up pile is empty and there is at least one down card, 
+				
+                if( (column.up.length == 0) && (column.down.length >= 1) )   // if up cards are all gone and there are down cards
+                {		
+                    column.up  ~= column.down[$-1..$].dup;  // move (copy) the down card into up slice 
+                    column.down = column.down[0..$-1];      // delete the previously moved card	
+                }
+				
                 return(true);				
             }          
         }		
@@ -382,7 +379,7 @@ bool moveCardsToFoundation()
 // https://forum.dlang.org/thread/zuzucjrbsilxxhjngwbm@forum.dlang.org?page=1
 
 
-bool moveTableauCardsOnOtherCards()
+bool moveTableauToTableauCards()
 {
     Card fromCard;
 	
@@ -397,12 +394,18 @@ bool moveTableauCardsOnOtherCards()
         {
             if(x != y)  // no reason to compare card to itself
             {
-                if(tableau[y].up.length >= 1)   // is there a top card in this up pile  
+                if(tableau[y].up.length >= 1)   // is there a top card in this up pile  b
                 {
-                    if((fromCard.rank  == tableau[y].up[0].rank-1) &&     // if card is one less 
-                       (fromCard.color != tableau[y].up[0].color) )       // and different colors
+                    //if((fromCard.rank  == tableau[y].up[0].rank-1) &&     // if card is one less 
+                    //   (fromCard.color != tableau[y].up[0].color) )       // and different colors
+                    if((fromCard.rank  == tableau[y].up[$-1].rank-1) &&     // if card is one less 
+                       (fromCard.color != tableau[y].up[$-1].color) )       // and different colors                  
                     {
-                        writeln("x = ", x, "  y = ", y);
+                        moveCursorToDebugLine();
+                        write("x = ", x, " ");
+						displayCard(fromCard, Facing.up);
+                        write("  y = ", y, " ");
+						displayCard(tableau[y].up[$-1], Facing.up);
                         writeAndPause("we've detected a legal move...");
                         //writeln("x = ", x, "  y = ", y);
 						
@@ -411,22 +414,13 @@ bool moveTableauCardsOnOtherCards()
 						
                         tableau[y].up ~= tableau[x].up[0..$].dup;   // move up card or cards to new up card
 						                                            // concateneate dst up cards with from up cards
-                                                                    // this is equivelant to physically moveing the cards
+                                                                    // this is equivelant to physically moving the cards
                         // tableau[x].up has given up all its cards. mark as empty
 
                         tableau[x].up = null;           							
-                        //writeln("tableau[y].up = ", tableau[y].up);	
-                        //writeln("tableau[x].up = ", tableau[x].up);
-						
-                        //displayTableau();
-					   
-                        //writeln();
-                        //writeAndPause("next we will adjust the source colun");	
-                  						
-						
-                        // tableau[x].up = tableau[x].up.remove(tableau[x].up.length-1);
-                        // tableau[x].up.length = 0;	 // WRONG: just sets the length to 0. 
-                        // tableau[x].up = null;  // sets both the .ptr property of an array to null, and the length to 0
+
+                        // tableau[x].up.length = 0;   // WRONG: just sets the length to 0. 
+                        // tableau[x].up = null;       // sets both the .ptr property of an array to null, and the length to 0
                         						
                         if( (tableau[x].up == null) && (tableau[x].down.length >= 1) )   // if up cards are all gone and there are down cards
                         {	
@@ -552,8 +546,12 @@ void displayStockWasteFoundationTableauBrackets()
 	write(tableauBrackets);	
 }
 
-
-
+void moveCursorToDebugLine()
+{
+		                                     // row       column
+    immutable string cursorPosition = "\033[" ~ "15" ~ ";" ~ "15" ~ "H";		
+    write(cursorPosition);
+}
 
 void main()
 {
@@ -661,7 +659,7 @@ void main()
 	
     writeln("deck should have 23 cards: ", deck.length);
 	
-	writeAndPause("KCH");
+	//writeAndPause("KCH");
 	
 	
     version (Windows)
@@ -756,7 +754,7 @@ void main()
         bool movedCard = false;
         do
         {
-            movedCard = moveTableauCardsOnOtherCards();      
+            movedCard = moveTableauToTableauCards();      
         } 
         while(movedCard);
 		
@@ -764,7 +762,7 @@ void main()
         bool movedToFound = false;
         do
         {
-            movedToFound = moveCardsToFoundation();      
+            movedToFound = moveCardToFoundation();      
         } 
         while(movedToFound);
         
