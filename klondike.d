@@ -171,14 +171,22 @@ string s(size_t t)
 
 void placeCardsDown(size_t x)
 {
+    if (x == 0)
+    {
+        tableau[x].down = null;  // 1st tableau column has no down card   
+        writeln("length = ", tableau[x].down.length);  
+        writeAndPause("");
+    }
+
     foreach(j; 0..x)
 	{
-		Card card;
-		card = deck[$-1];  // take (copy) a card from the top (end) of the deck
+        //Card card;
+
+		Card card = deck[$-1];  // take (copy) a card from the top (end) of the deck
 			
         deck = deck[0..$-1];  // delete the card just taken
        //tableau[x].down ~= deck.remove(deck.length);	
-	   
+ 
         tableau[x].down ~= card;
 	}
 }
@@ -276,7 +284,7 @@ void displayFoundation()
 {
     foreach(size_t i, foundation; foundations) 
     {
-        if(foundation.up.length >= 1)
+        //if(foundation.up.length >= 1)
         {
             uint r = foundation.pos.y;
             uint c = foundation.pos.x+1;
@@ -292,10 +300,7 @@ void displayFoundation()
 
 void displayTableau()
 {
-    system("cls");   
-    displayStockWasteFoundationTableauBrackets();
-	
-    displayStockCard();
+    //displayStockCard();
 	
     foreach(size_t i, cardPile; tableau) 
     {
@@ -350,7 +355,8 @@ bool moveCardToFoundation()
             if(column.up[$-1].rank == (foundations[s].up[$-1].rank + 1))    // Even an empty foundation has a -1 valued dummy card   
             {
 				moveCursorToDebugLine();
-				writeln("foundations[s].up = ", foundations[s].up);			
+				writeln("foundations[s].up = ", foundations[s].up);	
+                writeAndPause("we've detected a legal move...");		
 			
                 foundations[s].up ~= column.up[$-1..$];        // move (copy) card from tableau to foundation
                 column.up = column.up[0..$-1];                 // delete the card just moved
@@ -362,7 +368,7 @@ bool moveCardToFoundation()
                     column.up  ~= column.down[$-1..$].dup;  // move (copy) the down card into up slice 
                     column.down = column.down[0..$-1];      // delete the previously moved card	
                 }
-				
+				refreshEntireScreen();
                 return(true);				
             }          
         }		
@@ -422,21 +428,21 @@ bool moveTableauToTableauCards()
                         // tableau[x].up.length = 0;   // WRONG: just sets the length to 0. 
                         // tableau[x].up = null;       // sets both the .ptr property of an array to null, and the length to 0
                         						
-                        if( (tableau[x].up == null) && (tableau[x].down.length >= 1) )   // if up cards are all gone and there are down cards
+                        if (tableau[x].down.length >= 1)   // Is their a down card that we can now flip?
                         {	
                             //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG	
-                            //writeln("before");			
-                            //writeln("tableau[x].down = ", tableau[x].down);	
-                            //writeln("tableau[x].up = ",   tableau[x].up);	
 							
                             tableau[x].up  ~= tableau[x].down[$-1..$].dup;  // move down card into up array
                             tableau[x].down = tableau[x].down[0..$-1];      // remove the previous card	
-							
-                            //writeln("tableau[x].down = ", tableau[x].down);	
-                            //writeln("tableau[x].up = ",   tableau[x].up);							
+
+                            if (tableau[x].down.length == 0)   // was that the last down card we flipped?
+                            {
+                                tableau[x].down = null;
+                            }						
                         }
                         
-                        displayTableau();
+                        //displayTableau();
+                        refreshEntireScreen();
                         return(true);						
                     }				
                 }                  				
@@ -553,6 +559,16 @@ void moveCursorToDebugLine()
     write(cursorPosition);
 }
 
+void refreshEntireScreen()
+{
+        system("cls");   
+        displayStockWasteFoundationTableauBrackets();	
+        displayTableau();	
+	    displayStockCard();
+	    displayWasteCard();
+        displayFoundation();
+}
+
 void main()
 {
     suitColor[Suit.heart]   = Color.red;
@@ -648,7 +664,7 @@ void main()
  
     foreach(size_t x, column; tableau) 
     {
-        //writeln("Column ", x);
+        writeln("Column ", x);
         placeCardsDown(x);
         placeCardUp(x);       
     }   
@@ -746,11 +762,16 @@ void main()
     char key = 'a';
 
     while(key != 'q')
-    {	
+    {
+        refreshEntireScreen();
+        /+
+        system("cls");   
+        displayStockWasteFoundationTableauBrackets();	
         displayTableau();	
 	    displayStockCard();
 	    displayWasteCard();
-
+        displayFoundation();
+        +/
         bool movedCard = false;
         do
         {
