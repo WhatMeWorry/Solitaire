@@ -182,9 +182,9 @@ void placeCardsDown(size_t x)
 	{
         //Card card;
 
-		Card card = deck[$-1];  // take (copy) a card from the top (end) of the deck
+		Card card = stock[$-1];  // take (copy) a card from the top (end) of the deck
 			
-        deck = deck[0..$-1];  // delete the card just taken
+        stock = stock[0..$-1];  // delete the card just taken
        //tableau[x].down ~= deck.remove(deck.length);	
  
         tableau[x].down ~= card;
@@ -195,11 +195,19 @@ void placeCardsDown(size_t x)
 void placeCardFromStockOnWasteFacingUp()
 {
     Card card;
-    card = deck[$-1];  // take (copy) a card from the top (end) of the deck
+    if (stock.length >= 1)
+    {
+        card = stock[$-1];  // take (copy) a card from the top (end) of the deck
 
-    waste ~= card;
+        waste ~= card;
 	
-    deck = deck[0..$-1];   // delete card just moved 
+        stock = stock[0..$-1];   // delete card just move
+    }
+    else
+    {
+        writeAndPause("stock is EMPTY");
+
+    } 
 }
 
 
@@ -207,15 +215,14 @@ void placeCardFromStockOnWasteFacingUp()
 void placeCardUp(size_t x)
 {
     //writeln("Place 1 card up");
-    //tableau[x].up[] ~= deck.remove(deck.length);
 	
     Card card;
-    card = deck[$-1];  // take a card from the deck
+    card = stock[$-1];  // take a card from the deck
 
     //card.facing = Facing.up;		
     //writeln("card = ", card);
 
-    deck = deck[0..$-1];
+    stock = stock[0..$-1];
 		
     tableau[x].up ~= card;	
 }
@@ -358,7 +365,7 @@ bool moveCardToFoundation()
 				writeln("foundations[s].up = ", foundations[s].up);	
                 writeAndPause("we've detected a legal move...");		
 			
-                foundations[s].up ~= column.up[$-1..$];        // move (copy) card from tableau to foundation
+                foundations[s].up ~= column.up[$-1..$].dup;        // move (copy) card from tableau to foundation
                 column.up = column.up[0..$-1];                 // delete the card just moved
 
                 // if the up pile is empty and there is at least one down card, 
@@ -378,6 +385,81 @@ bool moveCardToFoundation()
 }
 
 
+bool moveKingsInTableau()
+{
+    size_t from = 999;	
+    foreach(size_t k, column; tableau) 
+    {
+        if (column.up.length >= 1)
+        {
+            if (column.up[0].rank == Ranking.king)
+            {
+               // writeln("kingIndex = ", k);
+                from = k;
+                //writeAndPause("++++++++++");            
+                break;
+            }
+        }
+    }
+    size_t to = 999;       
+    foreach(size_t e, column; tableau)
+    {
+        if ((column.down.length == 0) && (column.up.length == 0)) 
+        {
+            //writeln("empty index = ", e);
+            to = e;
+            //writeAndPause("");            
+            break;
+        }        
+    }
+    if ( (to < Columns) && (from < Columns) && (tableau[from].down.length >= 1) )
+    {                                           // prevents oscillating
+        writeln("kingIndex = ", from);
+        writeln("empty index = ", to);
+        writeAndPause("");
+
+        tableau[to].up ~= tableau[from].up[0..$].dup;
+        tableau[from].up = null;
+        tableau[from].up.length = 0;
+
+        if (tableau[from].down.length >= 1) 
+        {
+            tableau[from].up  ~= tableau[from].down[$-1..$].dup;  // move down card into up array
+            tableau[from].down = tableau[from].down[0..$-1];      // remove the previous card	
+
+            if (tableau[from].down.length == 0)   // was that the last down card we flipped?
+            {
+                writeAndPause("pile empty");
+                tableau[from].down = null;
+            }  
+        refreshEntireScreen();         
+        }       
+        return(true);
+    }
+    return(false);
+}
+
+
+
+bool moveTableauToTableauCards()
+{
+    //system("cls");	
+    foreach(size_t from, column; tableau) 
+    {
+        foreach(size_t to, possibility; tableau)
+        {
+            // writeln("(", from, ",", to, ")");
+            if ( (from != to) && 
+                 (tableau[from].up.length >= 1) &&
+                 (tableau[to].up.length >= 1) )           
+            {                                  
+                compareCards(from, to);  // only proceed if upright cards are present
+            }
+        }
+    }
+    //writeAndPause("");
+    return(false);
+}
 
 
 // TableauPile column;
@@ -385,73 +467,146 @@ bool moveCardToFoundation()
 // https://forum.dlang.org/thread/zuzucjrbsilxxhjngwbm@forum.dlang.org?page=1
 
 
-bool moveTableauToTableauCards()
+bool compareCards(size_t x, size_t y)
 {
     Card fromCard;
-	
-    foreach(size_t x, column; tableau) 
+
+    fromCard = tableau[x].up[0];	// get the top card 	
+
+    // if((fromCard.rank  == tableau[y].up[0].rank-1) &&     // if card is one less 
+    //    (fromCard.color != tableau[y].up[0].color) )       // and different colors
+    if( (fromCard.rank  == tableau[y].up[$-1].rank-1) &&     // if card is one less 
+        (fromCard.color != tableau[y].up[$-1].color) )       // and different colors                  
     {
-        if(tableau[x].up.length >= 1)    // is there a top card in this up pile 
-        {
-            fromCard = tableau[x].up[0];		
-        }
-	
-        foreach(size_t y, possibility; tableau)
-        {
-            if(x != y)  // no reason to compare card to itself
-            {
-                if(tableau[y].up.length >= 1)   // is there a top card in this up pile  b
-                {
-                    //if((fromCard.rank  == tableau[y].up[0].rank-1) &&     // if card is one less 
-                    //   (fromCard.color != tableau[y].up[0].color) )       // and different colors
-                    if((fromCard.rank  == tableau[y].up[$-1].rank-1) &&     // if card is one less 
-                       (fromCard.color != tableau[y].up[$-1].color) )       // and different colors                  
-                    {
-                        moveCursorToDebugLine();
-                        write("x = ", x, " ");
-						displayCard(fromCard, Facing.up);
-                        write("  y = ", y, " ");
-						displayCard(tableau[y].up[$-1], Facing.up);
-                        writeAndPause("we've detected a legal move...");
-                        //writeln("x = ", x, "  y = ", y);
+        moveCursorToDebugLine();
+        write("x = ", x, " ");
+		displayCard(fromCard, Facing.up);
+        write("  y = ", y, " ");
+		displayCard(tableau[y].up[$-1], Facing.up);
+        writeAndPause("we've detected a legal move...");
 						
-                        //writeln("tableau[y].up = ", tableau[y].up);	
-                        //writeln("tableau[x].up = ", tableau[x].up);
-						
-                        tableau[y].up ~= tableau[x].up[0..$].dup;   // move up card or cards to new up card
-						                                            // concateneate dst up cards with from up cards
-                                                                    // this is equivelant to physically moving the cards
-                        // tableau[x].up has given up all its cards. mark as empty
+        tableau[y].up ~= tableau[x].up[0..$].dup;   // move up card or cards to new up card
+						                            // concateneate dst up cards with from up cards
+                                                    // this is equivelant to physically moving the cards
+        // tableau[x].up has given up all its cards. mark as empty
 
-                        tableau[x].up = null;           							
+        tableau[x].up = null;
+        tableau[x].up.length = 0; 
+        writeAndPause("NO UP cards IF");          							
 
-                        // tableau[x].up.length = 0;   // WRONG: just sets the length to 0. 
-                        // tableau[x].up = null;       // sets both the .ptr property of an array to null, and the length to 0
+        // tableau[x].up.length = 0;   // WRONG: just sets the length to 0. 
+        // tableau[x].up = null;       // sets both the .ptr property of an array to null, and the length to 0
                         						
-                        if (tableau[x].down.length >= 1)   // Is their a down card that we can now flip?
-                        {	
-                            //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG	
-							
-                            tableau[x].up  ~= tableau[x].down[$-1..$].dup;  // move down card into up array
-                            tableau[x].down = tableau[x].down[0..$-1];      // remove the previous card	
+        if (tableau[x].down.length >= 1)   // Is their a down card that we can now flip?
+        {	
+            //tableau[x].up ~= tableau[x].down[$-1].dup  // WRONG WRONG WRONG	
+			writeAndPause("FIRST IF");
+            tableau[x].up  ~= tableau[x].down[$-1..$].dup;  // move down card into up array
+            tableau[x].down = tableau[x].down[0..$-1];      // remove the previous card	
 
-                            if (tableau[x].down.length == 0)   // was that the last down card we flipped?
-                            {
-                                tableau[x].down = null;
-                            }						
-                        }
-                        
-                        //displayTableau();
-                        refreshEntireScreen();
-                        return(true);						
-                    }				
-                }                  				
+            if (tableau[x].down.length == 0)   // was that the last down card we flipped?
+            {
+                writeAndPause("pile empty");
+                tableau[x].down = null;
             }
-        }
- 		
+        }						             
+        
+        refreshEntireScreen();
+        return(true);						
     }   
     return(false);
 }
+
+void moveCardFromStockToWaste()
+{
+    if (stock.length >= 1)
+    {
+        waste ~= stock[$-1..$].dup;
+        stock ~= stock[0..$-1];     
+    }
+}
+
+
+bool isWasteCardKing()
+{
+    if(waste.length == 0)   // if waste pile is empty then impossible
+    {
+       return(false);
+    }
+
+    if (waste[$-1].rank  == Ranking.king)
+    {
+        writeAndPause("King is on Waste Pile");
+        return(true);
+    }
+    return(false);
+}
+
+
+size_t isTableauCardKing()
+{
+    foreach(size_t i, column; tableau) 
+    {
+        if (tableau[i].up.length > 0)
+        {
+            if ( (tableau[i].up[0].rank == Ranking.king) && (tableau[i].down.length >= 1) )
+            {
+                return(i);
+            }
+  
+        }            
+    }
+    return(Columns);
+}
+
+
+
+
+
+
+size_t isColumnEmpty()
+{
+    foreach(size_t i, column; tableau) 
+    {
+        if ( (tableau[i].up.length == 0) && (tableau[i].down.length == 0) )   // is there at least one up card in this column
+        {    
+            return(i);
+        }
+    }
+    return(Columns);
+}
+
+bool tryMovingWasteCardToTableau()
+{
+    //Card wasteCard;
+    if(waste.length == 0)   // if waste pile is empty then impossible
+    {
+       return(false);
+    }
+ 	
+    foreach(size_t i, column; tableau) 
+    {
+        if(tableau[i].up.length >= 1)    // is there at least one up card in this column
+        {
+            if((waste[$-1].rank  == tableau[i].up[$-1].rank-1) &&     // if card is one less 
+               (waste[$-1].color != tableau[i].up[$-1].color) )       // and different colors
+            {
+                        moveCursorToDebugLine();
+                        write("waste card = ");
+						displayCard(waste[$-1], Facing.up);
+                        write("  i = ", i, " ");
+						displayCard(tableau[i].up[$-1], Facing.up);
+                        writeAndPause("we've detected a legal move...");                
+               tableau[i].up ~= waste[$-1..$].dup;   // move waste card down to column
+               waste = waste[0..$-1];                // remove the previous card	
+               return(true);              
+            }
+        }
+    }
+    return(false);
+}
+
+
 
 
 
@@ -569,6 +724,9 @@ void refreshEntireScreen()
         displayFoundation();
 }
 
+
+
+
 void main()
 {
     suitColor[Suit.heart]   = Color.red;
@@ -576,13 +734,8 @@ void main()
     suitColor[Suit.diamond] = Color.red;
     suitColor[Suit.club]    = Color.black;
 
-    foreach(i; EnumMembers!Suit) 
-	{
-        //writeln("enum is ", i);
-        //writefln("%s: %d", i, i);
-        //writeln("suitColor is ", suitColor[i]);
-    }		
 
+    // Create the cards
 	
     foreach(s; EnumMembers!Suit) 
 	{
@@ -604,7 +757,7 @@ void main()
     }
 	
 
-
+    // Setup the four foundations
 
     foreach(size_t x, s; EnumMembers!Suit) 
 	{
@@ -620,34 +773,27 @@ void main()
         foundations[s].pos.y = 2;
         foundations[s].pos.x = 40 + (x * 10);		
         //writeln("foundations[s].up[] is ", foundations[s].up[]);
- 
     }		
-       //writeAndPause("Check this out");		
- 
-	
+    
 
-    //writeln("deck should have 52 cards: ", deck.length);
-	
     foreach(c; deck)  
     {
-        //writeln("card = ", c);
+        writeln("card = ", c);
     }	
 
     deck = randomShuffle!(Card[])(deck);  // Shuffle the cards
 
     stock = deck;
 	
-    foreach(c; deck)  
+    foreach(c; stock)  
     {
-        //writeln("shuffled card = ", c);
+        writeln("shuffled card = ", c);
     }	
-	
-    //writeln("deck should have 52 cards: ", deck.length);
+    writeAndPause("");	
 
 
     // Now deal out the Klondike Tableau
- 
-	
+ 	
     int row = 4;
     int col = 10;		
     foreach(size_t i, table; tableau) 
@@ -669,11 +815,11 @@ void main()
         placeCardUp(x);       
     }   
 
-    writeln("deck should have 24 cards: ", deck.length);
+    writeln("stock should have 24 cards: ", stock.length);
 	
 	placeCardFromStockOnWasteFacingUp();
 	
-    writeln("deck should have 23 cards: ", deck.length);
+    writeln("srock should have 23 cards: ", stock.length);
 	
 	//writeAndPause("KCH");
 	
@@ -758,27 +904,76 @@ void main()
 	//write(boldBackWhite);
 	write(foreBlack);
 
+    int[] slices;
+    slices ~= 12;
+    slices ~= 33;
+    slices ~= 45;
+
+    
+     
+        
 
     char key = 'a';
 
     while(key != 'q')
     {
         refreshEntireScreen();
-        /+
-        system("cls");   
-        displayStockWasteFoundationTableauBrackets();	
-        displayTableau();	
-	    displayStockCard();
-	    displayWasteCard();
-        displayFoundation();
-        +/
+
         bool movedCard = false;
         do
         {
-            movedCard = moveTableauToTableauCards();      
+            movedCard = moveTableauToTableauCards();  // columns considered if not emty    
         } 
         while(movedCard);
-		
+
+
+        if (isWasteCardKing())
+        {
+            size_t e = isColumnEmpty();
+            if (e < Columns)
+            {
+                write("Column ", e, " is empty");
+                writeAndPause("King in waste");
+                tableau[e].up ~= waste[$-1..$].dup;
+                waste = waste[0..$-1];
+            }            
+        }
+
+        size_t k = isTableauCardKing();
+        if (k < Columns)
+        {
+            size_t e = isColumnEmpty();
+            if (e < Columns)
+            {
+                write("Column ", k, " has king");
+                write("Column ", e, " is empty");                
+                writeAndPause("King in tableau");
+                tableau[e].up ~= tableau[k].up[0..$].dup;
+                // assuming tableau[e].up is empty
+                //tableau[e].up = tableau[k].up[0..$].dup;                
+                tableau[k].up.length = 0;
+
+
+
+        if (tableau[k].down.length >= 1)   // Is their a down card that we can now flip?
+        {	
+			writeAndPause("FIRST IF");
+            tableau[k].up  ~= tableau[k].down[$-1..$].dup;  // move down card into up array
+            tableau[k].down = tableau[k].down[0..$-1];      // remove the previous card	
+
+            if (tableau[k].down.length == 0)   // was that the last down card we flipped?
+            {
+                writeAndPause("pile empty");
+                tableau[k].down = null;
+            }
+        }						     
+
+
+
+
+            }            
+        }
+
 		
         bool movedToFound = false;
         do
@@ -786,6 +981,17 @@ void main()
             movedToFound = moveCardToFoundation();      
         } 
         while(movedToFound);
+
+        //tryMovingWasteCardToFoundation();
+
+        if (tryMovingWasteCardToTableau()==false)
+        {
+            moveCardFromStockToWaste();            
+        }
+        refreshEntireScreen();
+
+        //moveKingsInTableau();
+                   
         
         //moveTableauCardsOnOtherCards();
         //bool movedCard 
@@ -795,7 +1001,17 @@ void main()
 	    displayWasteCard();		
         displayFoundation();		
 		
-        moveCursorBottomLeft();		
+        moveCursorBottomLeft();
+
+
+        /+
+        foreach(k; 0..3)
+	    {
+            writeln("slices = ", slices);
+            writeAndPause("");
+            slices = slices[0..$-1];   // more than 3 times you get a run time memory error
+        }
+        +/
         write("ENTER q to quit? ");
 
         readf(" %s", &key);		
